@@ -16,14 +16,8 @@ parameters:
       - prod
 
 variables:
-  # Set Databricks host based on environment
-  ${{ if eq(parameters.environment, 'dev') }}:
-    databricks_host: 'https://adb-4224932210669459.19.azuredatabricks.net/'
-  ${{ if eq(parameters.environment, 'staging') }}:
-    databricks_host: 'https://adb-1804483085509645.5.azuredatabricks.net'
-  ${{ if eq(parameters.environment, 'prod') }}:
-    databricks_host: 'https://adb-PROD-INSTANCE-ID.azuredatabricks.net'
-  databricks_token: ''
+  - group: databricks-${{ parameters.environment }}
+
 
 stages:
   - stage: Validate
