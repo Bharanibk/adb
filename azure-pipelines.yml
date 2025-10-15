@@ -9,14 +9,15 @@ parameters:
   - name: environment
     displayName: 'Target Environment'
     type: string
-    default: 'dev'
+    default: 'staging'
     values:
       - dev
       - staging
       - prod
 
 variables:
-  - group: databricks-${{ parameters.environment }}
+  databricks-host: 'https://adb-1804483085509645.5.azuredatabricks.net'
+  databricks-token: '$(DATABRICKS_TOKEN)'
 
 stages:
   - stage: Validate
