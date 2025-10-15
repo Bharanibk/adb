@@ -1,0 +1,16 @@
+# environments/staging.yml
+variables:
+  storage_account_name: "shared5005staging"
+  container_name: "emp-staging"
+  environment: "staging"
+  notebook_base_path: "/Repos/staging/adb/notebook"
+  cluster_node_type: "Standard_D4ds_v4"
+  num_workers: 4
+
+resources:
+  jobs:
+    employee_master_job:
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"  # 6 AM
+        timezone_id: "America/Chicago"
+        pause_status: UNPAUSED

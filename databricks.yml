@@ -1,0 +1,49 @@
+# databricks.yml
+bundle:
+  name: employee_pipeline
+
+# Default values (can be overridden by environments)
+variables:
+  storage_account_name:
+    description: "Storage account name"
+    default: "shared5005"
+  
+  container_name:
+    description: "Container name"
+    default: "emp"
+  
+  environment:
+    description: "Environment name"
+    default: "dev"
+  
+  notebook_base_path:
+    description: "Base path for notebooks"
+    default: "/Repos/bharani@aius821.onmicrosoft.com/adb/notebook"
+  
+  cluster_node_type:
+    description: "Cluster node type"
+    default: "Standard_D4ds_v4"
+  
+  num_workers:
+    description: "Number of cluster workers"
+    default: 8
+
+include:
+  - resources/*.yml
+
+# Target different Databricks workspaces per environment
+targets:
+  dev:
+    mode: development
+    workspace:
+      host: https://adb-4224932210669459.19.azuredatabricks.net
+  
+  staging:
+    mode: development
+    workspace:
+      host: https://adb-staging-xxxxx.azuredatabricks.net
+  
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-prod-xxxxx.azuredatabricks.net

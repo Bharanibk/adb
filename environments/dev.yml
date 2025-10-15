@@ -1,0 +1,16 @@
+# environments/dev.yml
+variables:
+  storage_account_name: "shared5005dev"
+  container_name: "emp-dev"
+  environment: "dev"
+  notebook_base_path: "/Repos/dev/adb/notebook"
+  cluster_node_type: "Standard_D4ds_v4"
+  num_workers: 2  # Smaller cluster for dev
+
+resources:
+  jobs:
+    employee_master_job:
+      schedule:
+        quartz_cron_expression: "0 0 12 * * ?"  # Run at noon for dev
+        timezone_id: "America/Chicago"
+        pause_status: UNPAUSED
