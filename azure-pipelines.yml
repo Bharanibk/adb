@@ -16,7 +16,13 @@ parameters:
       - prod
 
 variables:
-  - group: databricks-${{ parameters.environment }}
+  # Set Databricks host based on environment
+  ${{ if eq(parameters.environment, 'dev') }}:
+    databricks_host: 'https://adb-1804483085509645.5.azuredatabricks.net'
+  ${{ if eq(parameters.environment, 'staging') }}:
+    databricks_host: 'https://adb-1804483085509645.5.azuredatabricks.net'
+  ${{ if eq(parameters.environment, 'prod') }}:
+    databricks_host: 'https://adb-PROD-INSTANCE-ID.azuredatabricks.net'
 
 stages:
   - stage: Validate
@@ -40,8 +46,8 @@ stages:
               databricks bundle validate -t ${{ parameters.environment }}
             displayName: 'Validate Bundle Configuration'
             env:
-              DATABRICKS_HOST: $(databricks-host)
-              DATABRICKS_TOKEN: $(databricks-token)
+              DATABRICKS_HOST: $(databricks_host)
+              DATABRICKS_TOKEN: $(DATABRICKS_TOKEN)
 
   - stage: Deploy
     displayName: 'Deploy to ${{ parameters.environment }}'
@@ -72,8 +78,8 @@ stages:
                     databricks bundle deploy -t ${{ parameters.environment }}
                   displayName: 'Deploy Bundle'
                   env:
-                    DATABRICKS_HOST: $(databricks-host)
-                    DATABRICKS_TOKEN: $(databricks-token)
+                    DATABRICKS_HOST: $(databricks_host)
+                    DATABRICKS_TOKEN: $(DATABRICKS_TOKEN)
                 
                 - script: |
                     # Optionally run the job after deployment
@@ -82,5 +88,5 @@ stages:
                   displayName: 'Trigger Job (Optional)'
                   condition: eq('${{ parameters.environment }}', 'dev')
                   env:
-                    DATABRICKS_HOST: $(databricks-host)
-                    DATABRICKS_TOKEN: $(databricks-token)
+                    DATABRICKS_HOST: $(databricks_host)
+                    DATABRICKS_TOKEN: $(DATABRICKS_TOKEN)
