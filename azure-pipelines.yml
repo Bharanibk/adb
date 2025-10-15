@@ -18,11 +18,12 @@ parameters:
 variables:
   # Set Databricks host based on environment
   ${{ if eq(parameters.environment, 'dev') }}:
-    databricks_host: 'https://adb-1804483085509645.5.azuredatabricks.net'
+    databricks_host: 'https://adb-4224932210669459.19.azuredatabricks.net/'
   ${{ if eq(parameters.environment, 'staging') }}:
     databricks_host: 'https://adb-1804483085509645.5.azuredatabricks.net'
   ${{ if eq(parameters.environment, 'prod') }}:
     databricks_host: 'https://adb-PROD-INSTANCE-ID.azuredatabricks.net'
+  databricks_token: ''
 
 stages:
   - stage: Validate
@@ -47,7 +48,7 @@ stages:
             displayName: 'Validate Bundle Configuration'
             env:
               DATABRICKS_HOST: $(databricks_host)
-              DATABRICKS_TOKEN: $(DATABRICKS_TOKEN)
+              DATABRICKS_TOKEN: $(databricks_token)
 
   - stage: Deploy
     displayName: 'Deploy to ${{ parameters.environment }}'
@@ -79,7 +80,7 @@ stages:
                   displayName: 'Deploy Bundle'
                   env:
                     DATABRICKS_HOST: $(databricks_host)
-                    DATABRICKS_TOKEN: $(DATABRICKS_TOKEN)
+                    DATABRICKS_TOKEN: $(databricks_token)
                 
                 - script: |
                     # Optionally run the job after deployment
@@ -89,4 +90,4 @@ stages:
                   condition: eq('${{ parameters.environment }}', 'dev')
                   env:
                     DATABRICKS_HOST: $(databricks_host)
-                    DATABRICKS_TOKEN: $(DATABRICKS_TOKEN)
+                    DATABRICKS_TOKEN: $(databricks_token)
