@@ -1,88 +1,56 @@
 trigger:
-  branches:
-    include:
-      - main
+- main
 
 pool:
   vmImage: ubuntu-latest
 
 variables:
-- group: databricks-stage    # contains: databricks-host, databricks-token
+- group: databricks-stage     # contains: databricks-host, databricks-token
 
-stages:
-- stage: Validate
-  displayName: Validate bundle for Stage
-  jobs:
-  - job: validate
-    steps:
-    - checkout: self
-      fetchDepth: 0
+steps:
+- checkout: self
+  fetchDepth: 0
 
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '3.10'
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.10'
 
-    # Install NEW Databricks CLI (Go) pinned to a stable version
-    - script: |
-        set -e
-        sudo apt-get update -y
-        sudo apt-get install -y unzip
-        mkdir -p $HOME/.databricks/bin
-        curl -L https://github.com/databricks/cli/releases/download/v0.224.0/databricks_linux_amd64.zip -o /tmp/databricks_cli.zip
-        unzip -o /tmp/databricks_cli.zip -d $HOME/.databricks/bin
-        chmod +x $HOME/.databricks/bin/databricks
-        echo '##vso[task.prependpath]'$HOME'/.databricks/bin'
-        databricks version
-      displayName: Install Databricks CLI (v0.224.0)
+# Install NEW Databricks CLI (Go) - pinned release
+- script: |
+    set -e
+    sudo apt-get update -y
+    sudo apt-get install -y unzip
+    mkdir -p $HOME/.databricks/bin
+    curl -L https://github.com/databricks/cli/releases/download/v0.224.0/databricks_linux_amd64.zip -o /tmp/databricks_cli.zip
+    unzip -o /tmp/databricks_cli.zip -d $HOME/.databricks/bin
+    chmod +x $HOME/.databricks/bin/databricks
+    echo '##vso[task.prependpath]'$HOME'/.databricks/bin'
+    databricks version
+  displayName: Install Databricks CLI (v0.224.0)
 
-    - script: |
-        set -e
-        export DATABRICKS_HOST="$(databricks-host)"
-        export DATABRICKS_TOKEN="$(databricks-token)"
-        cd bundle
-        databricks bundle validate -t stage
-      displayName: Validate bundle (-t stage)
+# Validate the bundle against STAGE
+- script: |
+    set -e
+    export DATABRICKS_HOST="$(databricks-host)"
+    export DATABRICKS_TOKEN="$(databricks-token)"
+    cd bundle
+    databricks bundle validate -t stage
+  displayName: Validate bundle (-t stage)
 
-- stage: Deploy_Stage
-  displayName: Deploy to Staging
-  dependsOn: Validate
-  condition: succeeded()
-  jobs:
-  - job: deploy
-    steps:
-    - checkout: self
-      fetchDepth: 0
+# Deploy notebooks + job to STAGE
+- script: |
+    set -e
+    export DATABRICKS_HOST="$(databricks-host)"
+    export DATABRICKS_TOKEN="$(databricks-token)"
+    cd bundle
+    databricks bundle deploy -t stage
+  displayName: Deploy bundle (-t stage)
 
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '3.10'
-
-    - script: |
-        set -e
-        sudo apt-get update -y
-        sudo apt-get install -y unzip
-        mkdir -p $HOME/.databricks/bin
-        curl -L https://github.com/databricks/cli/releases/download/v0.224.0/databricks_linux_amd64.zip -o /tmp/databricks_cli.zip
-        unzip -o /tmp/databricks_cli.zip -d $HOME/.databricks/bin
-        chmod +x $HOME/.databricks/bin/databricks
-        echo '##vso[task.prependpath]'$HOME'/.databricks/bin'
-        databricks version
-      displayName: Install Databricks CLI (v0.224.0)
-
-    - script: |
-        set -e
-        export DATABRICKS_HOST="$(databricks-host)"
-        export DATABRICKS_TOKEN="$(databricks-token)"
-        cd bundle
-        # Deploy notebooks + job to STAGE
-        databricks bundle deploy -t stage
-      displayName: Deploy bundle (-t stage)
-
-    # Optional: kick off the job once after deploy
-    - script: |
-        set -e
-        export DATABRICKS_HOST="$(databricks-host)"
-        export DATABRICKS_TOKEN="$(databricks-token)"
-        cd bundle
-        databricks bundle run employee_master_job -t stage --refresh-all
-      displayName: Run job once (stage)
+# Optional: run the job once after deploy
+- script: |
+    set -e
+    export DATABRICKS_HOST="$(databricks-host)"
+    export DATABRICKS_TOKEN="$(databricks-token)"
+    cd bundle
+    databricks bundle run employee_master_job -t stage --refresh-all
+  displayName: Run employee_master_job (stage)
