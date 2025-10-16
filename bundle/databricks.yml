@@ -13,13 +13,13 @@ targets:
   dev:
     default: true
     workspace:
-      host: https://<YOUR-DEV-WORKSPACE>.azuredatabricks.net
+      host: https://adb-4224932210669459.19.azuredatabricks.net/
     variables:
       config_file: ./configs/dev.yml
 
   stage:
     workspace:
-      host: https://<YOUR-STAGE-WORKSPACE>.azuredatabricks.net
+      host: https://adb-1804483085509645.5.azuredatabricks.net/
     variables:
       config_file: ./configs/stage.yml
 
