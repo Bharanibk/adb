@@ -31,11 +31,17 @@ stages:
         versionSpec: '3.10'
 
     - script: |
-        # Install NEW Databricks CLI (Go)
-        curl -fsSL https://raw.githubusercontent.com/databricks/cli/main/scripts/install.sh | bash
-        echo '##vso[task.prependpath]$HOME/.databricks/bin'
+        set -e
+        sudo apt-get update -y
+        sudo apt-get install -y unzip
+        mkdir -p $HOME/.databricks/bin
+        curl -L https://github.com/databricks/cli/releases/latest/download/databricks_linux_amd64.zip -o /tmp/databricks_cli.zip
+        unzip -o /tmp/databricks_cli.zip -d $HOME/.databricks/bin
+        chmod +x $HOME/.databricks/bin/databricks
+        echo '##vso[task.prependpath]'$HOME'/.databricks/bin'
         databricks version
-      displayName: Install Databricks CLI (new)
+      displayName: Install Databricks CLI (download from GitHub Releases)
+
 
     - script: |
         # Auth for CLI
