@@ -37,12 +37,24 @@ stages:
         export DATABRICKS_HOST="$(databricks-host)"
         export DATABRICKS_TOKEN="$(databricks-token)"
 
-        # Ensure destination exists
-        databricks workspace mkdirs "$(DEST_WORKSPACE_DIR)"
+        echo "Using host: $DATABRICKS_HOST"
+        echo "Listing root before:"
+        databricks workspace ls /
 
-        # Import all notebooks recursively and overwrite
-        databricks workspace import_dir \
-          --overwrite \
-          "$(SRC_NOTEBOOKS_DIR)" \
-          "$(DEST_WORKSPACE_DIR)"
-      displayName: Import notebooks to Stage
+        # Ensure destination exists (use a REAL path; /Shared is safe)
+        DEST="/Shared/deploy/notebooks"
+        SRC="notebook"     # adjust if your repo folder is different
+
+        echo "Creating destination: $DEST"
+        databricks workspace mkdirs "$DEST"
+
+        echo "Listing destination before:"
+        databricks workspace ls "$DEST" || true
+
+        echo "Importing from repo folder: $SRC"
+        databricks workspace import_dir --overwrite "$SRC" "$DEST"
+
+        echo "Listing destination after:"
+        databricks workspace ls "$DEST"
+      displayName: Import notebooks to Stage (with diagnostics)
+
