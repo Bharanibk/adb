@@ -1,4 +1,3 @@
-#new implementation
 trigger:
   branches:
     include:
@@ -7,15 +6,22 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
+# Uses your variable group with: databricks-host, databricks-token
 variables:
-- group: databricks-stage   # uses your variable group with: databricks-host, databricks-token
+- group: databricks-stage
+
+# Change these if you want a different source or destination path
+- name: SRC_NOTEBOOKS_DIR
+  value: notebooks
+- name: DEST_WORKSPACE_DIR
+  value: /Shared/deploy/notebooks   # will be created if it doesn't exist
 
 stages:
-# 1) Validate the bundle for Stage
-- stage: Validate
-  displayName: Validate Bundle (Stage)
+- stage: Deploy_Stage
+  displayName: Copy notebooks to Staging workspace
   jobs:
-  - job: validate
+  - job: import_notebooks
+    displayName: Import notebooks
     steps:
     - checkout: self
       fetchDepth: 0
@@ -25,55 +31,25 @@ stages:
         versionSpec: '3.10'
 
     - script: |
+        # Install NEW Databricks CLI (Go)
         curl -fsSL https://raw.githubusercontent.com/databricks/cli/main/scripts/install.sh | bash
         echo '##vso[task.prependpath]$HOME/.databricks/bin'
         databricks version
-      displayName: Install NEW Databricks CLI (Go)
-
+      displayName: Install Databricks CLI (new)
 
     - script: |
-        cd jobs
+        # Auth for CLI
         export DATABRICKS_HOST="$(databricks-host)"
         export DATABRICKS_TOKEN="$(databricks-token)"
-        databricks bundle validate -t stage
-      displayName: Validate databricks bundle (-t stage)
 
-# 2) Deploy to Stage
-- stage: Deploy_Stage
-  displayName: Deploy to Staging
-  dependsOn: Validate
-  condition: succeeded()
-  jobs:
-  - deployment: deploy_stage
-    displayName: Deploy notebooks + job (Stage)
-    environment: staging   # optional: add approvals in DevOps → Environments
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - checkout: self
-            fetchDepth: 0
+        # Ensure destination folder exists
+        databricks workspace mkdirs "$(DEST_WORKSPACE_DIR)"
 
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: '3.10'
-
-          - script: |
-              python -m pip install --upgrade pip
-              pip install --upgrade databricks-cli databricks-sdk
-            displayName: Install Databricks CLI
-
-          - script: |
-              cd jobs
-              export DATABRICKS_HOST="$(databricks-host)"
-              export DATABRICKS_TOKEN="$(databricks-token)"
-              databricks bundle deploy -t stage
-            displayName: Deploy bundle (-t stage)
-
-          # Optional: kick off a test run after deploy
-          - script: |
-              cd jobs
-              export DATABRICKS_HOST="$(databricks-host)"
-              export DATABRICKS_TOKEN="$(databricks-token)"
-              databricks bundle run csv_pipeline_job -t stage --refresh-all
-            displayName: Run job once (-t stage)
+        # Import the entire notebooks folder (recursive) and overwrite
+        # AUTO format will handle .py and .ipynb
+        databricks workspace import-dir \
+          --overwrite \
+          --format AUTO \
+          "$(SRC_NOTEBOOKS_DIR)" \
+          "$(DEST_WORKSPACE_DIR)"
+      displayName: Import notebooks to workspace
