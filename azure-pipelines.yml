@@ -1,96 +1,77 @@
-# azure-pipelines.yml
+#new implementation
 trigger:
   branches:
     include:
       - main
-      - develop
 
-parameters:
-  - name: environment
-    displayName: 'Target Environment'
-    type: string
-    default: 'staging'
-    values:
-      - dev
-      - staging
-      - prod
+pool:
+  vmImage: ubuntu-latest
 
 variables:
-  databricks-host: 'https://adb-1804483085509645.5.azuredatabricks.net'
-  databricks-token: '$(DATABRICKS_TOKEN)'
+- group: databricks-stage   # uses your variable group with: databricks-host, databricks-token
 
 stages:
-  - stage: Validate
-    displayName: 'Validate Bundle'
-    jobs:
-      - job: ValidateJob
-        displayName: 'Validate Databricks Bundle'
-        pool:
-          vmImage: 'ubuntu-latest'
-        
-        steps:
+# 1) Validate the bundle for Stage
+- stage: Validate
+  displayName: Validate Bundle (Stage)
+  jobs:
+  - job: validate
+    steps:
+    - checkout: self
+      fetchDepth: 0
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.10'
+
+    - script: |
+        python -m pip install --upgrade pip
+        pip install --upgrade databricks-cli databricks-sdk
+      displayName: Install Databricks CLI
+
+    - script: |
+        cd jobs
+        export DATABRICKS_HOST="$(databricks-host)"
+        export DATABRICKS_TOKEN="$(databricks-token)"
+        databricks bundle validate -t stage
+      displayName: Validate databricks bundle (-t stage)
+
+# 2) Deploy to Stage
+- stage: Deploy_Stage
+  displayName: Deploy to Staging
+  dependsOn: Validate
+  condition: succeeded()
+  jobs:
+  - deployment: deploy_stage
+    displayName: Deploy notebooks + job (Stage)
+    environment: staging   # optional: add approvals in DevOps → Environments
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+            fetchDepth: 0
+
           - task: UsePythonVersion@0
             inputs:
-              versionSpec: '3.9'
-          
-          - script: |
-              curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-            displayName: 'Install Databricks CLI'
-          
-          - script: |
-              # Configure Databricks authentication
-              mkdir -p ~/.databrickscfg
-              cat > ~/.databrickscfg << EOF
-              [DEFAULT]
-              host = $(databricks-host)
-              token = $(databricks-token)
-              EOF
-              
-              # Validate bundle
-              databricks bundle validate -t ${{ parameters.environment }}
-            displayName: 'Validate Bundle Configuration'
-            env:
-              DATABRICKS_HOST: $(databricks-host)
-              DATABRICKS_TOKEN: $(databricks-token)
+              versionSpec: '3.10'
 
-  - stage: Deploy
-    displayName: 'Deploy to ${{ parameters.environment }}'
-    dependsOn: Validate
-    condition: succeeded()
-    jobs:
-      - deployment: DeployJob
-        displayName: 'Deploy Databricks Assets'
-        pool:
-          vmImage: 'ubuntu-latest'
-        environment: ${{ parameters.environment }}
-        
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
-                
-                - task: UsePythonVersion@0
-                  inputs:
-                    versionSpec: '3.9'
-                
-                - script: |
-                    curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-                  displayName: 'Install Databricks CLI'
-                
-                - script: |
-                    databricks bundle deploy -t ${{ parameters.environment }}
-                  displayName: 'Deploy Bundle'
-                  env:
-                    DATABRICKS_HOST: $(databricks-host)
-                    DATABRICKS_TOKEN: $(databricks-token)
-                
-                - script: |
-                    # Optionally run the job after deployment
-                    JOB_ID=$(databricks bundle run employee_master_job -t ${{ parameters.environment }} --output json | jq -r .run_id)
-                    echo "Job started with run ID: $JOB_ID"
-                  displayName: 'Trigger Job (Optional)'
-                  condition: eq('${{ parameters.environment }}', 'dev')
-                  env:
-                    DATABRICKS_HOST: $(databricks-host)
-                    DATABRICKS_TOKEN: $(databricks-token)
+          - script: |
+              python -m pip install --upgrade pip
+              pip install --upgrade databricks-cli databricks-sdk
+            displayName: Install Databricks CLI
+
+          - script: |
+              cd jobs
+              export DATABRICKS_HOST="$(databricks-host)"
+              export DATABRICKS_TOKEN="$(databricks-token)"
+              databricks bundle deploy -t stage
+            displayName: Deploy bundle (-t stage)
+
+          # Optional: kick off a test run after deploy
+          - script: |
+              cd jobs
+              export DATABRICKS_HOST="$(databricks-host)"
+              export DATABRICKS_TOKEN="$(databricks-token)"
+              databricks bundle run csv_pipeline_job -t stage --refresh-all
+            displayName: Run job once (-t stage)
