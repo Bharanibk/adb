@@ -1,0 +1,57 @@
+{
+  "name": "employee_master_job",
+  "tasks": [
+    {
+      "task_key": "cleanup_bronze_task1",
+      "notebook_task": {
+        "notebook_path": "/Shared/deploy/notebooks/cleanupBronze",
+        "base_parameters": {
+          "storage_account_name": "shared5005",
+          "container_name": "emp",
+          "environment": "stage"
+        },
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "Job_cluster"
+    },
+    {
+      "task_key": "process_employee_data",
+      "depends_on": [
+        { "task_key": "cleanup_bronze_task1" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Shared/deploy/notebooks/employeeRaw2Bronze",
+        "base_parameters": {
+          "storage_account_name": "shared5005",
+          "container_name": "emp",
+          "environment": "stage"
+        },
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "Job_cluster"
+    }
+  ],
+  "job_clusters": [
+    {
+      "job_cluster_key": "Job_cluster",
+      "new_cluster": {
+        "cluster_name": "",
+        "spark_version": "16.4.x-scala2.12",
+        "azure_attributes": {
+          "first_on_demand": 1,
+          "availability": "SPOT_WITH_FALLBACK_AZURE",
+          "spot_bid_max_price": -1
+        },
+        "node_type_id": "Standard_D4ds_v4",
+        "spark_env_vars": {
+          "PYSPARK_PYTHON": "/databricks/python3/bin/python3"
+        },
+        "enable_elastic_disk": true,
+        "data_security_mode": "LEGACY_SINGLE_USER_STANDARD",
+        "runtime_engine": "PHOTON",
+        "num_workers": 8
+      }
+    }
+  ],
+  "queue": { "enabled": true }
+}
