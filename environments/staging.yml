@@ -1,7 +1,7 @@
 # environments/staging.yml
 variables:
-  storage_account_name: "shared5005staging"
-  container_name: "emp-staging"
+  storage_account_name: "storagestage5005"
+  container_name: "emp"
   environment: "staging"
   notebook_base_path: "/Repos/staging/adb/notebook"
   cluster_node_type: "Standard_D4ds_v4"
