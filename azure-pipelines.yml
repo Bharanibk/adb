@@ -1,94 +1,88 @@
 trigger:
-- main
+  branches:
+    include:
+      - main
 
 pool:
   vmImage: ubuntu-latest
 
 variables:
-- group: databricks-stage         # has: databricks-host, databricks-token
-- name: SRC_NOTEBOOKS_DIR
-  value: notebook                 # folder in your repo (adjust if different)
-- name: DEST_WORKSPACE_DIR
-  value: /Shared/deploy/notebooks # where to copy in STAGING workspace
+- group: databricks-stage    # contains: databricks-host, databricks-token
 
-steps:
-- checkout: self
-  fetchDepth: 0
+stages:
+- stage: Validate
+  displayName: Validate bundle for Stage
+  jobs:
+  - job: validate
+    steps:
+    - checkout: self
+      fetchDepth: 0
 
-- task: UsePythonVersion@0
-  inputs:
-    versionSpec: '3.10'
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.10'
 
-- script: |
-    python -m pip install --upgrade pip
-    pip install --upgrade databricks-cli
-    databricks --version
-  displayName: Install Databricks CLI (legacy)
+    # Install NEW Databricks CLI (Go) pinned to a stable version
+    - script: |
+        set -e
+        sudo apt-get update -y
+        sudo apt-get install -y unzip
+        mkdir -p $HOME/.databricks/bin
+        curl -L https://github.com/databricks/cli/releases/download/v0.224.0/databricks_linux_amd64.zip -o /tmp/databricks_cli.zip
+        unzip -o /tmp/databricks_cli.zip -d $HOME/.databricks/bin
+        chmod +x $HOME/.databricks/bin/databricks
+        echo '##vso[task.prependpath]'$HOME'/.databricks/bin'
+        databricks version
+      displayName: Install Databricks CLI (v0.224.0)
 
-- script: |
-    set -e
-    echo "Using host: $(databricks-host)"
-    export DATABRICKS_HOST="$(databricks-host)"
-    export DATABRICKS_TOKEN="$(databricks-token)"
+    - script: |
+        set -e
+        export DATABRICKS_HOST="$(databricks-host)"
+        export DATABRICKS_TOKEN="$(databricks-token)"
+        cd bundle
+        databricks bundle validate -t stage
+      displayName: Validate bundle (-t stage)
 
-    echo "Listing / before import"
-    databricks workspace ls /
+- stage: Deploy_Stage
+  displayName: Deploy to Staging
+  dependsOn: Validate
+  condition: succeeded()
+  jobs:
+  - job: deploy
+    steps:
+    - checkout: self
+      fetchDepth: 0
 
-    echo "Ensuring destination: $(DEST_WORKSPACE_DIR)"
-    databricks workspace mkdirs "$(DEST_WORKSPACE_DIR)"
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.10'
 
-    echo "Importing from repo folder: $(SRC_NOTEBOOKS_DIR)"
-    databricks workspace import_dir --overwrite "$(SRC_NOTEBOOKS_DIR)" "$(DEST_WORKSPACE_DIR)"
+    - script: |
+        set -e
+        sudo apt-get update -y
+        sudo apt-get install -y unzip
+        mkdir -p $HOME/.databricks/bin
+        curl -L https://github.com/databricks/cli/releases/download/v0.224.0/databricks_linux_amd64.zip -o /tmp/databricks_cli.zip
+        unzip -o /tmp/databricks_cli.zip -d $HOME/.databricks/bin
+        chmod +x $HOME/.databricks/bin/databricks
+        echo '##vso[task.prependpath]'$HOME'/.databricks/bin'
+        databricks version
+      displayName: Install Databricks CLI (v0.224.0)
 
-    echo "Listing destination after import"
-    databricks workspace ls "$(DEST_WORKSPACE_DIR)"
-  displayName: Import notebooks to STAGING
+    - script: |
+        set -e
+        export DATABRICKS_HOST="$(databricks-host)"
+        export DATABRICKS_TOKEN="$(databricks-token)"
+        cd bundle
+        # Deploy notebooks + job to STAGE
+        databricks bundle deploy -t stage
+      displayName: Deploy bundle (-t stage)
 
-# Upsert the job in STAGING (reset if exists, else create)
-- script: |
-    set -euo pipefail
-    export DATABRICKS_HOST="$(databricks-host)"
-    export DATABRICKS_TOKEN="$(databricks-token)"
-
-    echo "Using host: $DATABRICKS_HOST"
-    databricks --version
-
-    echo "Switching Jobs CLI to API 2.1"
-    databricks jobs configure --version=2.1
-
-    # Ensure jq available
-    sudo apt-get update -y
-    sudo apt-get install -y jq
-
-    JOB_NAME="employee_master_job"
-    JOB_JSON="jobs/employee_master_job.stage.json"
-
-    echo "Verifying job spec exists at: $JOB_JSON"
-    ls -l "$JOB_JSON"
-    echo "----- JOB SPEC BEGIN -----"
-    sed -n '1,120p' "$JOB_JSON"
-    echo "----- JOB SPEC END -----"
-
-    echo "Searching for existing job named: $JOB_NAME"
-    # The list output can be paginated; we grab the first matching name.
-    JOB_ID="$(databricks jobs list --output JSON | jq -r '.jobs[] | select(.settings.name=="'"$JOB_NAME"'") | .job_id' | head -n1 || true)"
-    echo "JOB_ID: ${JOB_ID:-<none>}"
-
-    if [ -n "${JOB_ID:-}" ] && [ "$JOB_ID" != "null" ]; then
-      echo "Found job_id=$JOB_ID — resetting with new settings (Jobs 2.1)"
-      # Try the file flag; if not supported by your CLI build, fallback to @file
-      if ! databricks jobs reset --job-id "$JOB_ID" --new-settings-file "$JOB_JSON"; then
-        echo "Fallback to --new-settings @file"
-        databricks jobs reset --job-id "$JOB_ID" --new-settings "@$JOB_JSON"
-      fi
-    else
-      echo "Job not found — creating new job (Jobs 2.1)"
-      if ! databricks jobs create --json-file "$JOB_JSON"; then
-        echo "Fallback to --json @file"
-        databricks jobs create --json "@$JOB_JSON"
-      fi
-    fi
-
-    echo "Current jobs (name → id):"
-    databricks jobs list --output JSON | jq -r '.jobs[] | "\(.settings.name) -> \(.job_id)"'
-  displayName: Upsert Databricks job (stage, 2.1, robust)
+    # Optional: kick off the job once after deploy
+    - script: |
+        set -e
+        export DATABRICKS_HOST="$(databricks-host)"
+        export DATABRICKS_TOKEN="$(databricks-token)"
+        cd bundle
+        databricks bundle run employee_master_job -t stage --refresh-all
+      displayName: Run job once (stage)
