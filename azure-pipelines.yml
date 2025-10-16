@@ -43,3 +43,30 @@ steps:
     echo "Listing destination after import"
     databricks workspace ls "$(DEST_WORKSPACE_DIR)"
   displayName: Import notebooks to STAGING
+
+# Upsert the job in STAGING (reset if exists, else create)
+- script: |
+    set -e
+    export DATABRICKS_HOST="$(databricks-host)"
+    export DATABRICKS_TOKEN="$(databricks-token)"
+
+    sudo apt-get update -y
+    sudo apt-get install -y jq
+
+    JOB_NAME="employee_master_job"
+    JOB_JSON="jobs/employee_master_job.stage.json"
+
+    echo "Looking for existing job named: $JOB_NAME"
+    JOB_ID=$(databricks jobs list --output JSON | jq -r '.jobs[] | select(.settings.name=="'"$JOB_NAME"'") | .job_id' | head -n1)
+
+    if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "null" ]; then
+      echo "Found job_id=$JOB_ID — resetting with new settings"
+      databricks jobs reset --job-id "$JOB_ID" --new-settings "@$JOB_JSON"
+    else
+      echo "Job not found — creating new job"
+      databricks jobs create --json "@$JOB_JSON"
+    fi
+
+    echo "Done. Current jobs:"
+    databricks jobs list
+  displayName: Upsert Databricks job (stage)
