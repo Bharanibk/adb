@@ -1,60 +1,45 @@
 trigger:
-  branches:
-    include:
-      - main
+- main
 
 pool:
   vmImage: ubuntu-latest
 
 variables:
-- group: databricks-stage   # contains databricks-host, databricks-token
+- group: databricks-stage         # has: databricks-host, databricks-token
 - name: SRC_NOTEBOOKS_DIR
-  value: notebook           # matches your repo folder name
+  value: notebook                 # folder in your repo (adjust if different)
 - name: DEST_WORKSPACE_DIR
-  value: /Workspace/notebook   # where you want them to appear in Stage workspace
+  value: /Shared/deploy/notebooks # where to copy in STAGING workspace
 
-stages:
-- stage: Deploy_Stage
-  displayName: Copy notebooks to Staging
-  jobs:
-  - job: import_notebooks
-    steps:
-    - checkout: self
-      fetchDepth: 0
+steps:
+- checkout: self
+  fetchDepth: 0
 
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '3.10'
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.10'
 
-    - script: |
-        python -m pip install --upgrade pip
-        pip install --upgrade databricks-cli
-        databricks --version
-      displayName: Install Databricks CLI
+- script: |
+    python -m pip install --upgrade pip
+    pip install --upgrade databricks-cli
+    databricks --version
+  displayName: Install Databricks CLI (legacy)
 
-    - script: |
-        set -e
-        export DATABRICKS_HOST="$(databricks-host)"
-        export DATABRICKS_TOKEN="$(databricks-token)"
+- script: |
+    set -e
+    echo "Using host: $(databricks-host)"
+    export DATABRICKS_HOST="$(databricks-host)"
+    export DATABRICKS_TOKEN="$(databricks-token)"
 
-        echo "Using host: $DATABRICKS_HOST"
-        echo "Listing root before:"
-        databricks workspace ls /
+    echo "Listing / before import"
+    databricks workspace ls /
 
-        # Ensure destination exists (use a REAL path; /Shared is safe)
-        DEST="/Shared/deploy/notebooks"
-        SRC="notebook"     # adjust if your repo folder is different
+    echo "Ensuring destination: $(DEST_WORKSPACE_DIR)"
+    databricks workspace mkdirs "$(DEST_WORKSPACE_DIR)"
 
-        echo "Creating destination: $DEST"
-        databricks workspace mkdirs "$DEST"
+    echo "Importing from repo folder: $(SRC_NOTEBOOKS_DIR)"
+    databricks workspace import_dir --overwrite "$(SRC_NOTEBOOKS_DIR)" "$(DEST_WORKSPACE_DIR)"
 
-        echo "Listing destination before:"
-        databricks workspace ls "$DEST" || true
-
-        echo "Importing from repo folder: $SRC"
-        databricks workspace import_dir --overwrite "$SRC" "$DEST"
-
-        echo "Listing destination after:"
-        databricks workspace ls "$DEST"
-      displayName: Import notebooks to Stage (with diagnostics)
-
+    echo "Listing destination after import"
+    databricks workspace ls "$(DEST_WORKSPACE_DIR)"
+  displayName: Import notebooks to STAGING
