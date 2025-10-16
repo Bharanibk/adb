@@ -7,11 +7,11 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-- group: databricks-stage     # contains: databricks-host, databricks-token
+- group: databricks-stage   # contains databricks-host, databricks-token
 - name: SRC_NOTEBOOKS_DIR
-  value: notebooks            # path in your repo
+  value: notebook           # matches your repo folder name
 - name: DEST_WORKSPACE_DIR
-  value: /Shared/deploy/notebooks   # path in Stage workspace
+  value: /Workspace/notebook   # where you want them to appear in Stage workspace
 
 stages:
 - stage: Deploy_Stage
@@ -26,14 +26,12 @@ stages:
       inputs:
         versionSpec: '3.10'
 
-    # Install the *legacy* CLI (works great for workspace import_dir)
     - script: |
         python -m pip install --upgrade pip
         pip install --upgrade databricks-cli
         databricks --version
-      displayName: Install legacy Databricks CLI
+      displayName: Install Databricks CLI
 
-    # Auth + mkdirs + import_dir (legacy syntax uses underscores)
     - script: |
         set -e
         export DATABRICKS_HOST="$(databricks-host)"
@@ -42,11 +40,9 @@ stages:
         # Ensure destination exists
         databricks workspace mkdirs "$(DEST_WORKSPACE_DIR)"
 
-        # Import the entire folder recursively and overwrite
-        # NOTE: If your notebooks are .py, set language to PYTHON
+        # Import all notebooks recursively and overwrite
         databricks workspace import_dir \
           --overwrite \
-          --language PYTHON \
           "$(SRC_NOTEBOOKS_DIR)" \
           "$(DEST_WORKSPACE_DIR)"
-      displayName: Import notebooks to Stage (legacy CLI)
+      displayName: Import notebooks to Stage
