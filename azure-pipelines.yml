@@ -44,18 +44,15 @@ stages:
 
 
     - script: |
-        # Auth for CLI
         export DATABRICKS_HOST="$(databricks-host)"
         export DATABRICKS_TOKEN="$(databricks-token)"
 
-        # Ensure destination folder exists
         databricks workspace mkdirs "$(DEST_WORKSPACE_DIR)"
 
-        # Import the entire notebooks folder (recursive) and overwrite
-        # AUTO format will handle .py and .ipynb
         databricks workspace import-dir \
           --overwrite \
           --format AUTO \
           "$(SRC_NOTEBOOKS_DIR)" \
           "$(DEST_WORKSPACE_DIR)"
       displayName: Import notebooks to workspace
+
