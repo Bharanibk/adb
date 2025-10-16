@@ -1,0 +1,3 @@
+environment: stage
+storage_account_name: shared5005
+container_name: emp
