@@ -1,0 +1,65 @@
+bundle:
+  name: adb-employee
+
+workspace:
+  # All bundle files will be deployed under this path in the target workspace
+  root_path: /Shared/Bundles/${bundle.name}/${target}
+
+variables:
+  # repo-relative path to notebooks in git
+  notebooks_base: ../notebooks
+
+targets:
+  dev:
+    default: true
+    workspace:
+      host: https://<YOUR-DEV-WORKSPACE>.azuredatabricks.net
+    variables:
+      config_file: ./configs/dev.yml
+
+  stage:
+    workspace:
+      host: https://<YOUR-STAGE-WORKSPACE>.azuredatabricks.net
+    variables:
+      config_file: ./configs/stage.yml
+
+resources:
+  jobs:
+    employee_master_job:
+      name: employee_master_job
+      tasks:
+        - task_key: cleanup_bronze_task1
+          job_cluster_key: jc_small
+          notebook_task:
+            # Notebook files come from your repo; the bundle uploads them under workspace.root_path
+            notebook_path: ${var.notebooks_base}/cleanupBronze.py
+            base_parameters:
+              storage_account_name: ${varfile.${var.config_file}.storage_account_name}
+              container_name: ${varfile.${var.config_file}.container_name}
+              environment: ${varfile.${var.config_file}.environment}
+        - task_key: process_employee_data
+          depends_on:
+            - task_key: cleanup_bronze_task1
+          job_cluster_key: jc_small
+          notebook_task:
+            notebook_path: ${var.notebooks_base}/employeeRaw2Bronze.py
+            base_parameters:
+              storage_account_name: ${varfile.${var.config_file}.storage_account_name}
+              container_name: ${varfile.${var.config_file}.container_name}
+              environment: ${varfile.${var.config_file}.environment}
+
+  clusters:
+    job_clusters:
+      jc_small:
+        # Use a version available in your workspace (adjust if needed)
+        spark_version: "16.3.x-scala2.12"
+        node_type_id: "Standard_D4ds_v4"
+        autoscale:
+          min_workers: 1
+          max_workers: 2
+        runtime_engine: PHOTON
+        enable_elastic_disk: true
+        azure_attributes:
+          first_on_demand: 1
+          availability: SPOT_WITH_FALLBACK_AZURE
+          spot_bid_max_price: -1
